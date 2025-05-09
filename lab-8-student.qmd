@@ -1,9 +1,22 @@
+---
+title: "Lab 8: Exploring Missing Data and Rescaling"
+author: "Van Stewart"
+format: html
+editor: visual
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+
 The goal of this lab is learn more about exploring missing data and writing
 modular code.
 
 ```{r}
 #| label: setup
-
+library(tidyverse)
+library(ggplot2)
 
 ```
 
@@ -37,6 +50,21 @@ measurement errors.
 ```{r}
 #| label: find-missing-values
 
+fish <- read_csv("BlackfootFish.csv")
+
+n_rows_with_na <- fish |> 
+  ## Summarise returns a single value: the number of rows that have at least one NA
+  summarise(
+    n_rows_with_na = sum(
+      ## if_any checks across all columns for each row
+      if_any(everything(), ~ is.na(.))
+    )
+  )
+
+
+
+
+
 ```
 
 
@@ -45,6 +73,23 @@ measurement errors.
 
 ```{r}
 #| label: map-missing-values-of-fish
+
+missing_by_variable <- fish |> 
+  
+  ## Apply a function to each column: count how many NAs are in each
+  summarise(across(everything(), ~ sum(is.na(.)))) |> 
+  
+  ## Reshape the data from wide format (one row with many columns) to long format:
+  pivot_longer(everything(), names_to = "variable", values_to = "missing_count") |> 
+  
+  ## Keep only the variables where the missing count is greater than 0
+  filter(missing_count > 0)
+
+
+missing_by_variable
+
+
+
 
 
 ```
@@ -55,7 +100,35 @@ measurement errors.
 ```{r}
 #| label: visual-of-missing-values-over-time
 
+fish |> 
+  
+  ## Create a new column `row_missing` that is TRUE if length or weight is NA
+  mutate(row_missing = if_any(c(length, weight), is.na)) |> 
+  
+  ## Group the data by year, section, and trip
+  group_by(year, section, trip) |> 
+  
+  ## Count how many missing rows are in each group
+  summarise(n_missing = sum(row_missing), .groups = "drop") |> 
+  
+  ## Start a ggplot with year on x-axis and number of missing on y-axis
+  ggplot(aes(x = year, y = n_missing)) +
+  
+  ## Create a bar chart of missing values over time
+  geom_col() +
+  
+  ## Lables and theme!
+  labs(
+    title = "Missing Observations by Year and Section",
+    y = "Number of Missing Records",
+    x = "Year"
+  ) +
+  theme_minimal()
+
+
 ```
+
+
 
 ## Rescaling the Data
 
@@ -86,7 +159,7 @@ This process of duplicating an action multiple times can make it difficult to
 understand the intent of the process. *Additionally, it can make it very difficult to spot mistakes.*
 
 **3. What is the mistake I made in the above rescaling code?**
-
+> There is a copy-paste error, length is done twice
 
 When you find yourself copy-pasting lines of code, it's time to write a
 function, instead!
@@ -98,6 +171,12 @@ function, instead!
 
 ```{r}
 #| label: write-rescale-function
+
+rescale_01 <- function(x) {
+  (x - min(x, na.rm = TRUE)) / 
+    (max(x, na.rm = TRUE) - min(x, na.rm = TRUE))
+}
+
 
 ```
 
@@ -113,6 +192,8 @@ function.
 
 + **... the input vector is not numeric.**
 + **... the length of the input vector is not greater than 1.**
+
+
 
 ::: callout-tip
 # Modify Previous Code
@@ -147,13 +228,36 @@ statement in order to create a `length_scaled` variable.
 ```{r}
 #| label: compare-original-with-rescaled-lengths
 
-fish |>  
-  ggplot(aes(x = length)) + 
+## Stack overflow said id need this
+library(patchwork)
+
+fishy1 <- fish |>  
+ ggplot(aes(x = length)) + 
   geom_histogram(binwidth = 45) +
   labs(x = "Original Values of Fish Length (mm)") +
   scale_y_continuous(limits = c(0,4000))
 
 # Code for Q7 plot.
+
+
+
+##  Add a new rescaled length column
+fish <- fish |> 
+  mutate(length_scaled = rescale_01(length))
+
+## Rescaled length plot
+fishy2 <- fish |>  
+  ggplot(aes(x = length_scaled
+             ))+ 
+  geom_histogram(binwidth = 0.05
+                 )+
+  labs(x = "Rescaled Values of Fish Length (0–1)"
+       )+
+  scale_y_continuous(limits = c(0, 4000))
+
+## Show plots side-by-side with the patchwork package
+fishy1 + fishy2
+
 
 ```
 
