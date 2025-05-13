@@ -2,11 +2,10 @@
 title: "Lab 8: Exploring Missing Data and Rescaling"
 author: "Van Stewart"
 format: html
-editor: visual
 execute:
   echo: true
-  warning: false
   message: false
+  warning: false
 ---
 
 
@@ -14,11 +13,14 @@ The goal of this lab is learn more about exploring missing data and writing
 modular code.
 
 ```{r}
-#| label: setup
+#| include: false
+#| label: Set-up
+
+# Load packages
 library(tidyverse)
-library(ggplot2)
 
 ```
+
 
 ## The Data
 
@@ -50,29 +52,7 @@ measurement errors.
 ```{r}
 #| label: find-missing-values
 
-fish <- read_csv("BlackfootFish.csv")
-
-n_rows_with_na <- fish |> 
-  ## Summarise returns a single value: the number of rows that have at least one NA
-  summarise(
-    n_rows_with_na = sum(
-      ## if_any checks across all columns for each row
-      if_any(everything(), ~ is.na(.))
-    )
-  )
-
-
-
-
-
-```
-
-
-
-**1b. Using `map_int()`, produce a nicely formatted table of the number of missing values for each variable in the `fish` data that displays the same information as 1a** 
-
-```{r}
-#| label: map-missing-values-of-fish
+fish <- read_csv("BlackfootFish.csv",show_col_types = FALSE)
 
 missing_by_variable <- fish |> 
   
@@ -95,6 +75,19 @@ missing_by_variable
 ```
 
 
+
+**1b. Using `map_int()`, produce a nicely formatted table of the number of missing values for each variable in the `fish` data that displays the same information as 1a** 
+
+```{r}
+#| label: map-missing-values-of-fish
+
+
+library(purrr)
+
+map_int(fish, ~ sum(is.na(.)))
+```
+
+
 **2. Create ONE thoughtful visualization that explores the frequency of missing values across the different years, sections, and trips.**
 
 ```{r}
@@ -112,16 +105,20 @@ fish |>
   summarise(n_missing = sum(row_missing), .groups = "drop") |> 
   
   ## Start a ggplot with year on x-axis and number of missing on y-axis
-  ggplot(aes(x = year, y = n_missing)) +
+  ggplot(aes(x = year, y = n_missing, color = trip)) +
   
   ## Create a bar chart of missing values over time
-  geom_col() +
+  geom_point(alpha = 0.6) +
+  
+  ## Create separate plots (facets) for each river section,
+  facet_wrap(~ section)+
   
   ## Lables and theme!
   labs(
     title = "Missing Observations by Year and Section",
     y = "Number of Missing Records",
-    x = "Year"
+    x = "Year",
+    color = "Trip"
   ) +
   theme_minimal()
 
@@ -173,6 +170,16 @@ function, instead!
 #| label: write-rescale-function
 
 rescale_01 <- function(x) {
+  
+  
+  # Input validation, found the idea from Stack Overflow :: https://stackoverflow.com/questions/79025632/how-to-stop-r-from-executing-when-value-is-non-numeric?
+  if (!is.numeric(x)) {
+    stop("Input must be numeric.")
+  }
+  if (length(x) <= 1) {
+    stop("Input must have more than one value.")
+  }
+  
   (x - min(x, na.rm = TRUE)) / 
     (max(x, na.rm = TRUE) - min(x, na.rm = TRUE))
 }
